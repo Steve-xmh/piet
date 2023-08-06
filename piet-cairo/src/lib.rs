@@ -342,19 +342,19 @@ impl<'a> RenderContext for CairoRenderContext<'a> {
         // user space (the logical rectangle) to device space (the "physical" rectangle).
         // For example, in a HiDPI (2x) setting, a user-space rectangle of 20x20 would be
         // 40x40 in device space.
-        let user_rect = Rectangle::new(
-            src_rect.x0,
-            src_rect.y0,
-            src_rect.width(),
-            src_rect.height(),
-        );
+        let user_rect = Rectangle {
+            x: src_rect.x0,
+            y: src_rect.y0,
+            width: src_rect.width(),
+            height: src_rect.height(),
+        };
         let device_rect = self.user_to_device(&user_rect);
 
         // This is the surface to which we draw the captured image area
         let target_surface = ImageSurface::create(
             Format::ARgb32,
-            device_rect.width() as i32,
-            device_rect.height() as i32,
+            device_rect.width as i32,
+            device_rect.height as i32,
         )
         .map_err(convert_error)?;
         let target_ctx = Context::new(&target_surface).map_err(convert_error)?;
@@ -372,7 +372,7 @@ impl<'a> RenderContext for CairoRenderContext<'a> {
         target_ctx
             .set_source_surface(&cropped_source_surface, 0.0, 0.0)
             .map_err(convert_error)?;
-        target_ctx.rectangle(0.0, 0.0, device_rect.width(), device_rect.height());
+        target_ctx.rectangle(0.0, 0.0, device_rect.width, device_rect.height);
         target_ctx.fill().map_err(convert_error)?;
 
         Ok(CairoImage(target_surface))
@@ -526,12 +526,15 @@ impl<'a> CairoRenderContext<'a> {
     }
 
     fn user_to_device(&self, user_rect: &Rectangle) -> Rectangle {
-        let (x, y) = self.ctx.user_to_device(user_rect.x(), user_rect.y());
-        let (width, height) = self
-            .ctx
-            .user_to_device(user_rect.width(), user_rect.height());
+        let (x, y) = self.ctx.user_to_device(user_rect.x, user_rect.y);
+        let (width, height) = self.ctx.user_to_device(user_rect.width, user_rect.height);
 
-        Rectangle::new(x, y, width, height)
+        Rectangle {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 }
 

@@ -154,7 +154,7 @@ impl CairoText {
     pub fn new() -> CairoText {
         let fontmap = FontMap::default();
         CairoText {
-            pango_context: fontmap.create_context(),
+            pango_context: fontmap.unwrap().create_context().unwrap(),
         }
     }
 }
@@ -277,7 +277,7 @@ impl TextLayoutBuilder for CairoTextLayoutBuilder {
     fn build(self) -> Result<Self::Out, Error> {
         let pango_attributes = AttrList::new();
 
-        pango_attributes.insert(pango::AttrInt::new_insert_hyphens(false));
+        // pango_attributes.insert(pango::AttrInt::new_insert_hyphens(false));
         pango_attributes.insert(
             AttributeWithRange {
                 attribute: TextAttribute::FontFamily(self.defaults.font),
@@ -412,11 +412,11 @@ impl TextLayout for CairoTextLayout {
         let line_start_idx = self.line_metric(line_number).unwrap().start_offset;
 
         let hitpos = line.x_to_index(x);
-        let rel_idx = if hitpos.is_inside() {
-            let idx = hitpos.index() as usize - line_start_idx;
+        let rel_idx = if hitpos.is_inside {
+            let idx = hitpos.index as usize - line_start_idx;
             let trailing_len: usize = line_text[idx..]
                 .chars()
-                .take(hitpos.trailing() as usize)
+                .take(hitpos.trailing as usize)
                 .map(char::len_utf8)
                 .sum();
             idx + trailing_len
@@ -436,7 +436,7 @@ impl TextLayout for CairoTextLayout {
 
         let is_inside_y = point.y >= 0. && point.y <= self.size.height;
 
-        HitTestPoint::new(line_start_idx + rel_idx, hitpos.is_inside() && is_inside_y)
+        HitTestPoint::new(line_start_idx + rel_idx, hitpos.is_inside && is_inside_y)
     }
 
     fn hit_test_text_position(&self, idx: usize) -> HitTestPosition {
@@ -500,7 +500,7 @@ impl CairoTextLayout {
         let mut y_offset = 0.;
         let mut widest_logical_width = 0;
         let mut widest_whitespaceless_width = 0;
-        let mut iterator = self.pango_layout.iter();
+        let mut iterator = self.pango_layout.iter().unwrap();
         loop {
             let line = iterator.line_readonly().unwrap();
 
