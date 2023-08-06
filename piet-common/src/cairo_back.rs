@@ -3,7 +3,7 @@
 
 //! Support for piet Cairo back-end.
 
-use cairo::{Context, Format, ImageSurface};
+use ::cairo::{Context, Format, ImageSurface};
 #[cfg(feature = "png")]
 use png::{ColorType, Encoder};
 #[cfg(feature = "png")]
