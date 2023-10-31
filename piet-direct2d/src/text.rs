@@ -83,7 +83,7 @@ pub struct D2DTextLayout {
 
 pub struct D2DTextLayoutBuilder {
     text: Rc<dyn TextStorage>,
-    layout: Result<dwrite::TextLayout, Error>,
+    layout: Result<(dwrite::TextLayout, dwrite::TextFormat), Error>,
     len_utf16: usize,
     loaded_fonts: D2DLoadedFonts,
     default_font: FontFamily,
@@ -91,6 +91,8 @@ pub struct D2DTextLayoutBuilder {
     colors: Vec<(Utf16Range, Color)>,
     // just used to assert api is used as expected
     last_range_start_pos: usize,
+    // For overflow
+    dwrite: DwriteFactory,
 }
 
 impl D2DText {
@@ -147,9 +149,14 @@ impl Text for D2DText {
         let width = f32::INFINITY;
         let wide_str = ToWide::to_wide(&text.as_str());
         let is_rtl = util::first_strong_rtl(text.as_str());
-        let layout = TextFormat::new(&self.dwrite, [], util::DEFAULT_FONT_SIZE as f32, is_rtl)
-            .and_then(|format| dwrite::TextLayout::new(&self.dwrite, format, width, &wide_str))
-            .map_err(Into::into);
+        let layout = {
+            TextFormat::new(&self.dwrite, [], util::DEFAULT_FONT_SIZE as f32, is_rtl)
+                .and_then(|format| {
+                    dwrite::TextLayout::new(&self.dwrite, format.clone(), width, &wide_str)
+                        .and_then(|layout| Ok((layout, format)))
+                })
+                .map_err(Into::into)
+        };
 
         D2DTextLayoutBuilder {
             layout,
@@ -160,6 +167,7 @@ impl Text for D2DText {
             default_font: FontFamily::default(),
             default_font_size: piet::util::DEFAULT_FONT_SIZE,
             last_range_start_pos: 0,
+            dwrite: self.dwrite.clone(),
         }
     }
 }
@@ -170,7 +178,30 @@ impl TextLayoutBuilder for D2DTextLayoutBuilder {
     fn max_width(mut self, width: f64) -> Self {
         let width = width.max(0.0);
         let result = match self.layout.as_mut() {
-            Ok(layout) => layout.set_max_width(width),
+            Ok(layout) => layout.0.set_max_width(width),
+            Err(_) => Ok(()),
+        };
+        if let Err(err) = result {
+            self.layout = Err(err.into());
+        }
+        self
+    }
+
+    fn max_height(mut self, height: f64) -> Self {
+        let height = height.max(0.0);
+        let result = match self.layout.as_mut() {
+            Ok(layout) => layout.0.set_max_height(height),
+            Err(_) => Ok(()),
+        };
+        if let Err(err) = result {
+            self.layout = Err(err.into());
+        }
+        self
+    }
+
+    fn overflow(mut self, method: piet::OverflowMethod) -> Self {
+        let result = match self.layout.as_mut() {
+            Ok(layout) => layout.0.set_overflow(method, &layout.1, &self.dwrite),
             Err(_) => Ok(()),
         };
         if let Err(err) = result {
@@ -181,7 +212,7 @@ impl TextLayoutBuilder for D2DTextLayoutBuilder {
 
     fn alignment(mut self, alignment: TextAlignment) -> Self {
         if let Ok(layout) = self.layout.as_mut() {
-            layout.set_alignment(alignment);
+            layout.0.set_alignment(alignment);
         }
         self
     }
@@ -227,7 +258,7 @@ impl TextLayoutBuilder for D2DTextLayoutBuilder {
             colors: self.colors.into(),
             needs_to_set_colors: Cell::new(true),
             line_metrics: Rc::new([]),
-            layout: Rc::new(RefCell::new(layout)),
+            layout: Rc::new(RefCell::new(layout.0)),
             size: Size::ZERO,
             trailing_ws_width: 0.0,
             inking_insets: Insets::ZERO,
@@ -267,20 +298,24 @@ impl D2DTextLayoutBuilder {
                     let is_custom = self.loaded_fonts.inner.borrow().contains(&font);
                     if is_custom {
                         let mut loaded = self.loaded_fonts.inner.borrow_mut();
-                        layout.set_font_collection(utf16_range, loaded.collection());
+                        layout
+                            .0
+                            .set_font_collection(utf16_range, loaded.collection());
                     } else if !self.loaded_fonts.inner.borrow().is_empty() {
                         // if we are using custom fonts we also need to set the collection
                         // back to the system collection explicity as needed
-                        layout.set_font_collection(utf16_range, &FontCollection::system());
+                        layout
+                            .0
+                            .set_font_collection(utf16_range, &FontCollection::system());
                     }
                     let family_name = resolve_family_name(&font);
-                    layout.set_font_family(utf16_range, family_name);
+                    layout.0.set_font_family(utf16_range, family_name);
                 }
-                TextAttribute::FontSize(size) => layout.set_size(utf16_range, size as f32),
-                TextAttribute::Weight(weight) => layout.set_weight(utf16_range, weight),
-                TextAttribute::Style(style) => layout.set_style(utf16_range, style),
-                TextAttribute::Underline(flag) => layout.set_underline(utf16_range, flag),
-                TextAttribute::Strikethrough(flag) => layout.set_strikethrough(utf16_range, flag),
+                TextAttribute::FontSize(size) => layout.0.set_size(utf16_range, size as f32),
+                TextAttribute::Weight(weight) => layout.0.set_weight(utf16_range, weight),
+                TextAttribute::Style(style) => layout.0.set_style(utf16_range, style),
+                TextAttribute::Underline(flag) => layout.0.set_underline(utf16_range, flag),
+                TextAttribute::Strikethrough(flag) => layout.0.set_strikethrough(utf16_range, flag),
                 TextAttribute::TextColor(color) => self.colors.push((utf16_range, color)),
             }
         }

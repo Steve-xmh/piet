@@ -86,6 +86,8 @@ impl RenderContext for NullRenderContext {
 
     fn draw_text(&mut self, _layout: &Self::TextLayout, _pos: impl Into<Point>) {}
 
+    fn set_global_alpha(&mut self, _alpha: f64) {}
+
     fn save(&mut self) -> Result<(), Error> {
         Ok(())
     }
@@ -156,6 +158,14 @@ impl TextLayoutBuilder for NullTextLayoutBuilder {
     type Out = NullTextLayout;
 
     fn max_width(self, _width: f64) -> Self {
+        self
+    }
+
+    fn max_height(self, _height: f64) -> Self {
+        self
+    }
+
+    fn overflow(self, _method: crate::OverflowMethod) -> Self {
         self
     }
 

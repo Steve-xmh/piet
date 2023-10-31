@@ -309,6 +309,10 @@ impl<'a> RenderContext for D2DRenderContext<'a> {
         self.ctx_stack.last_mut().unwrap().n_layers_pop += 1;
     }
 
+    fn set_global_alpha(&mut self, _alpha: f64) {
+        // TODO
+    }
+
     fn text(&mut self) -> &mut Self::Text {
         &mut self.inner_text
     }

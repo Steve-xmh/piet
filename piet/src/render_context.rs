@@ -163,6 +163,11 @@ where
     /// [`TextLayout::line_metric`] to get the baseline position of a specific line.
     fn draw_text(&mut self, layout: &Self::TextLayout, pos: impl Into<Point>);
 
+    /// Set global alpha which will apply on current context state.
+    ///
+    /// This's useful when using for rendering child with fading effects.
+    fn set_global_alpha(&mut self, alpha: f64);
+
     /// Save the context state.
     ///
     /// Pushes the current context state onto a stack, to be popped by

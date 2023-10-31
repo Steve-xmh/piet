@@ -1,6 +1,9 @@
 //! Traits for fonts and text handling.
 
-use std::ops::{Range, RangeBounds};
+use std::{
+    default,
+    ops::{Range, RangeBounds},
+};
 
 use crate::kurbo::{Point, Rect, Size};
 use crate::{Color, Error, FontFamily, FontStyle, FontWeight};
@@ -148,6 +151,18 @@ pub enum TextAttribute {
     Strikethrough(bool),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+/// Methods for handling text overflow.
+pub enum OverflowMethod {
+    #[default]
+    /// Text will render out of the region if overflow.
+    Default,
+    /// Text will be clipped if overflow.
+    Clip,
+    /// Text will be ellipsized if overflow.
+    Ellipsis,
+}
+
 /// A trait for laying out text.
 pub trait TextLayoutBuilder: Sized {
     /// The type of the generated [`TextLayout`].
@@ -161,6 +176,21 @@ pub trait TextLayoutBuilder: Sized {
     /// If you pass `f64::INFINITY`, words will not be wrapped; this is the
     /// default behaviour.
     fn max_width(self, width: f64) -> Self;
+
+    /// Set a max height for this layout.
+    ///
+    /// You may pass an `f64` to this method to indicate a height (in display points)
+    /// that will be used for word-wrapping.
+    ///
+    /// If you pass `f64::INFINITY`, words will not be wrapped; this is the
+    /// default behaviour.
+    fn max_height(self, height: f64) -> Self;
+
+    /// Set how to handle text overflow.
+    ///
+    /// The default behaviour is [`OverflowMethod::Default`], which let text
+    /// render out of region.
+    fn overflow(self, method: OverflowMethod) -> Self;
 
     /// Set the [`TextAlignment`] to be used for this layout.
     fn alignment(self, alignment: TextAlignment) -> Self;

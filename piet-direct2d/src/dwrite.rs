@@ -11,7 +11,6 @@ use std::ptr::null_mut;
 use std::sync::Arc;
 
 use dwrote::FontCollection as DWFontCollection;
-use winapi::shared::minwindef::{FALSE, TRUE};
 use winapi::shared::ntdef::LOCALE_NAME_MAX_LENGTH;
 use winapi::shared::winerror::{HRESULT, SUCCEEDED, S_OK};
 use winapi::um::dwrite::{
@@ -27,11 +26,18 @@ use winapi::um::dwrite::{
 use winapi::um::unknwnbase::IUnknown;
 use winapi::um::winnls::GetUserDefaultLocaleName;
 use winapi::Interface;
+use winapi::{
+    shared::minwindef::{FALSE, TRUE},
+    um::dwrite::{
+        IDWriteInlineObject, DWRITE_TRIMMING, DWRITE_TRIMMING_GRANULARITY_CHARACTER,
+        DWRITE_TRIMMING_GRANULARITY_NONE, DWRITE_TRIMMING_GRANULARITY_WORD,
+    },
+};
 
 use wio::com::ComPtr;
 use wio::wide::{FromWide, ToWide};
 
-use piet::kurbo::Insets;
+use piet::{kurbo::Insets, OverflowMethod};
 use piet::{FontFamily as PietFontFamily, FontStyle, FontWeight, TextAlignment};
 
 use crate::Brush;
@@ -68,6 +74,9 @@ pub struct TextFormat(pub(crate) ComPtr<IDWriteTextFormat>);
 struct FontFamily(ComPtr<IDWriteFontFamily>);
 
 pub struct FontCollection(ComPtr<IDWriteFontCollection>);
+
+#[derive(Clone)]
+pub struct InlineObject(ComPtr<IDWriteInlineObject>);
 
 #[derive(Clone)]
 pub struct TextLayout(ComPtr<IDWriteTextLayout>);
@@ -140,6 +149,19 @@ impl DwriteFactory {
 
     pub fn get_raw(&self) -> *mut IDWriteFactory {
         self.0.as_raw()
+    }
+
+    pub(crate) fn create_ellipsis_trimming_sign(
+        &self,
+        format: &TextFormat,
+    ) -> Result<InlineObject, Error> {
+        unsafe {
+            let mut ptr = null_mut();
+            let hr = self
+                .0
+                .CreateEllipsisTrimmingSign(format.0.as_raw(), &mut ptr);
+            wrap(hr, ptr, InlineObject)
+        }
     }
 
     pub(crate) fn system_font_collection(&self) -> Result<FontCollection, Error> {
@@ -466,6 +488,54 @@ impl TextLayout {
 
         unsafe {
             let hr = self.0.SetMaxWidth(max_width);
+
+            if SUCCEEDED(hr) {
+                Ok(())
+            } else {
+                Err(hr.into())
+            }
+        }
+    }
+
+    pub fn set_max_height(&mut self, max_height: f64) -> Result<(), Error> {
+        // infinity produces nonsense values for the inking rect on d2d
+        let max_height = if !max_height.is_finite() {
+            MAX_LAYOUT_CONSTRAINT
+        } else {
+            max_height as f32
+        };
+
+        unsafe {
+            let hr = self.0.SetMaxHeight(max_height);
+
+            if SUCCEEDED(hr) {
+                Ok(())
+            } else {
+                Err(hr.into())
+            }
+        }
+    }
+
+    pub fn set_overflow(
+        &mut self,
+        overflow: OverflowMethod,
+        layout: &TextFormat,
+        dwrite: &DwriteFactory,
+    ) -> Result<(), Error> {
+        let overflow = match overflow {
+            OverflowMethod::Default => DWRITE_TRIMMING_GRANULARITY_NONE,
+            OverflowMethod::Clip => DWRITE_TRIMMING_GRANULARITY_CHARACTER,
+            OverflowMethod::Ellipsis => DWRITE_TRIMMING_GRANULARITY_CHARACTER,
+        };
+
+        unsafe {
+            let opt = DWRITE_TRIMMING {
+                granularity: overflow,
+                delimiter: 0,
+                delimiterCount: 0,
+            };
+            let mut obj = dwrite.create_ellipsis_trimming_sign(layout)?;
+            let hr = self.0.SetTrimming(&opt, obj.0.as_raw());
 
             if SUCCEEDED(hr) {
                 Ok(())
