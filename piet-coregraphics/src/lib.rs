@@ -517,6 +517,10 @@ impl<'a> RenderContext for CoreGraphicsContext<'a> {
     fn status(&mut self) -> Result<(), Error> {
         Ok(())
     }
+
+    fn set_global_alpha(&mut self, _alpha: f64) {
+        // TODO
+    }
 }
 
 impl<'a> IntoBrush<CoreGraphicsContext<'a>> for Brush {

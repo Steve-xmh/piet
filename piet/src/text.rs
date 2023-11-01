@@ -1,9 +1,6 @@
 //! Traits for fonts and text handling.
 
-use std::{
-    default,
-    ops::{Range, RangeBounds},
-};
+use std::ops::{Range, RangeBounds};
 
 use crate::kurbo::{Point, Rect, Size};
 use crate::{Color, Error, FontFamily, FontStyle, FontWeight};

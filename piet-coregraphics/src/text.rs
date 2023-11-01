@@ -81,6 +81,8 @@ pub struct CoreGraphicsTextLayout {
 /// Building text layouts for `CoreGraphics`.
 pub struct CoreGraphicsTextLayoutBuilder {
     width: f64,
+    height: f64,
+    overflow: piet::OverflowMethod,
     alignment: TextAlignment,
     text: Rc<dyn TextStorage>,
     /// the end bound up to which we have already added attrs to our AttributedString
@@ -542,6 +544,8 @@ impl CoreGraphicsTextLayoutBuilder {
         CoreGraphicsTextLayoutBuilder {
             shared,
             width: MAX_LAYOUT_CONSTRAINT,
+            height: MAX_LAYOUT_CONSTRAINT,
+            overflow: piet::OverflowMethod::default(),
             alignment: TextAlignment::default(),
             attrs: Default::default(),
             text,
@@ -566,6 +570,16 @@ impl TextLayoutBuilder for CoreGraphicsTextLayoutBuilder {
 
     fn max_width(mut self, width: f64) -> Self {
         self.width = width;
+        self
+    }
+
+    fn max_height(mut self, height: f64) -> Self {
+        self.height = height;
+        self
+    }
+
+    fn overflow(mut self, method: piet::OverflowMethod) -> Self {
+        self.overflow = method;
         self
     }
 
