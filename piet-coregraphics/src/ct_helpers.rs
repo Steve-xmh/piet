@@ -32,14 +32,17 @@ use core_text::{
     },
     font_collection::{self, CTFontCollection, CTFontCollectionRef},
     font_descriptor::{self, CTFontDescriptor, CTFontDescriptorRef},
-    frame::CTFrame,
+    frame::{CTFrame, CTFrameRef},
     framesetter::CTFramesetter,
     line::{CTLine, CTLineRef, TypographicBounds},
     string_attributes,
 };
 use foreign_types::{ForeignType, ForeignTypeRef};
 
-use piet::kurbo::{Affine, Rect};
+use piet::{
+    kurbo::{Affine, Rect},
+    OverflowMethod,
+};
 use piet::{util, Color, FontFamily, FontFamilyInner, TextAlignment};
 
 #[derive(Clone)]
@@ -80,7 +83,7 @@ enum CTParagraphStyleSpecifier {
     //TailIndent = 3,
     //TabStops = 4,
     //TabInterval = 5,
-    //LineBreakMode = 6,
+    LineBreakMode = 6,
     // there are many more of these
 }
 
@@ -91,6 +94,16 @@ enum CTTextAlignment {
     Center = 2,
     Justified = 3,
     Natural = 4,
+}
+
+#[repr(u8)]
+enum CTLineBreakMode {
+    WordWrapping = 0,
+    //CharWrapping = 1,
+    Clipping = 2,
+    //TruncatingHead = 3,
+    TruncatingTail = 4,
+    //TruncatingMiddle = 5,
 }
 
 #[repr(C)]
@@ -122,6 +135,24 @@ impl CTParagraphStyleSetting {
             value_size: std::mem::size_of::<CTTextAlignment>(),
         }
     }
+
+    fn line_break_mode(method: OverflowMethod) -> Self {
+        static WORD_WRAPPING: CTLineBreakMode = CTLineBreakMode::WordWrapping;
+        static CLIPPING: CTLineBreakMode = CTLineBreakMode::Clipping;
+        static TRUNCATING_TAIL: CTLineBreakMode = CTLineBreakMode::TruncatingTail;
+
+        let wrap_mode: *const CTLineBreakMode = match method {
+            OverflowMethod::Default => &WORD_WRAPPING,
+            OverflowMethod::Clip => &CLIPPING,
+            OverflowMethod::Ellipsis => &TRUNCATING_TAIL,
+        };
+
+        CTParagraphStyleSetting {
+            spec: CTParagraphStyleSpecifier::LineBreakMode,
+            value: wrap_mode as *const c_void,
+            value_size: std::mem::size_of::<CTLineBreakMode>(),
+        }
+    }
 }
 
 impl AttributedString {
@@ -134,9 +165,10 @@ impl AttributedString {
         AttributedString { inner, rtl }
     }
 
-    pub(crate) fn set_alignment(&mut self, alignment: TextAlignment) {
+    pub(crate) fn set_attrs(&mut self, alignment: TextAlignment, method: OverflowMethod) {
         let alignment = CTParagraphStyleSetting::alignment(alignment, self.rtl);
-        let settings = [alignment];
+        let line_break_mode = CTParagraphStyleSetting::line_break_mode(method);
+        let settings = [alignment, line_break_mode];
         unsafe {
             let style = CTParagraphStyleCreate(settings.as_ptr(), 1);
             let style = CTParagraphStyle::wrap_under_create_rule(style);

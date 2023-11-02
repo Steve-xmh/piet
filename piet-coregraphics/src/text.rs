@@ -23,7 +23,10 @@ use core_text::{
     string_attributes,
 };
 
-use piet::kurbo::{Affine, Point, Rect, Size};
+use piet::{
+    kurbo::{Affine, Point, Rect, Size},
+    OverflowMethod,
+};
 use piet::{
     util, Error, FontFamily, FontStyle, FontWeight, HitTestPoint, HitTestPosition, LineMetric,
     Text, TextAlignment, TextAttribute, TextLayout, TextLayoutBuilder, TextStorage,
@@ -70,6 +73,8 @@ pub struct CoreGraphicsTextLayout {
     bonus_height: f64,
     image_bounds: Rect,
     width_constraint: f64,
+    height_constraint: f64,
+    overflow_method: OverflowMethod,
     // these two are stored values we use to determine cursor extents when the layout is empty.
     default_baseline: f64,
     default_line_height: f64,
@@ -611,12 +616,17 @@ impl TextLayoutBuilder for CoreGraphicsTextLayoutBuilder {
 
     fn build(mut self) -> Result<Self::Out, Error> {
         self.finalize();
-        self.attr_string.set_alignment(self.alignment);
+        self.attr_string.set_attrs(self.alignment, self.overflow);
         Ok(CoreGraphicsTextLayout::new(
             self.text,
             self.attr_string,
             self.width,
-            self.height,
+            if let OverflowMethod::Default = self.overflow {
+                MAX_LAYOUT_CONSTRAINT
+            } else {
+                self.height
+            },
+            self.overflow,
             self.default_baseline,
             self.default_line_height,
         ))
@@ -751,6 +761,7 @@ impl CoreGraphicsTextLayout {
         attr_string: AttributedString,
         width_constraint: f64,
         height_constraint: f64,
+        overflow_method: OverflowMethod,
         default_baseline: f64,
         default_line_height: f64,
     ) -> Self {
@@ -760,26 +771,32 @@ impl CoreGraphicsTextLayout {
             text,
             attr_string,
             framesetter,
-            // all of this is correctly set in `update_width` below
+            // all of this is correctly set in `update_size` below
             frame: None,
             frame_size: Size::ZERO,
             bonus_height: 0.0,
             image_bounds: Rect::ZERO,
-            // NaN to ensure we always execute code in update_width
+            // NaN to ensure we always execute code in update_size
             width_constraint: f64::NAN,
+            height_constraint: f64::NAN,
+            overflow_method,
             default_baseline,
             default_line_height,
             line_metrics: Rc::new([]),
             x_offsets: Rc::new([]),
             trailing_ws_width: 0.0,
         };
-        layout.update_width(width_constraint);
+        layout.update_size(width_constraint, height_constraint);
         layout
     }
 
     // this used to be part of the TextLayout trait; see https://github.com/linebender/piet/issues/298
     #[allow(clippy::float_cmp)]
-    fn update_width(&mut self, new_width: impl Into<Option<f64>>) {
+    fn update_size(
+        &mut self,
+        new_width: impl Into<Option<f64>>,
+        new_height: impl Into<Option<f64>>,
+    ) {
         let width = new_width.into().unwrap_or(MAX_LAYOUT_CONSTRAINT);
         let width = if width.is_normal() {
             width
@@ -791,13 +808,25 @@ impl CoreGraphicsTextLayout {
             return;
         }
 
-        let constraints = CGSize::new(width as CGFloat, MAX_LAYOUT_CONSTRAINT);
+        let height = new_height.into().unwrap_or(MAX_LAYOUT_CONSTRAINT);
+        let height = if height.is_normal() {
+            height
+        } else {
+            MAX_LAYOUT_CONSTRAINT
+        };
+
+        if height.ceil() == self.height_constraint.ceil() {
+            return;
+        }
+
+        let constraints = CGSize::new(width as CGFloat, height as CGFloat);
         let char_range = self.attr_string.range();
         let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &constraints);
         let path = CGPath::from_rect(rect, None);
         self.width_constraint = width;
 
         let frame = self.framesetter.create_frame(char_range, &path);
+
         let layout_metrics = build_line_metrics(
             &frame,
             &self.text,
