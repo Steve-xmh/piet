@@ -522,7 +522,7 @@ impl TextLayout {
         layout: &TextFormat,
         dwrite: &DwriteFactory,
     ) -> Result<(), Error> {
-        let overflow = match overflow {
+        let granularity = match overflow {
             OverflowMethod::Default => DWRITE_TRIMMING_GRANULARITY_NONE,
             OverflowMethod::Clip => DWRITE_TRIMMING_GRANULARITY_CHARACTER,
             OverflowMethod::Ellipsis => DWRITE_TRIMMING_GRANULARITY_CHARACTER,
@@ -530,12 +530,17 @@ impl TextLayout {
 
         unsafe {
             let opt = DWRITE_TRIMMING {
-                granularity: overflow,
+                granularity,
                 delimiter: 0,
                 delimiterCount: 0,
             };
-            let mut obj = dwrite.create_ellipsis_trimming_sign(layout)?;
-            let hr = self.0.SetTrimming(&opt, obj.0.as_raw());
+            let hr = match overflow {
+                OverflowMethod::Ellipsis => {
+                    let mut obj = dwrite.create_ellipsis_trimming_sign(layout)?;
+                    self.0.SetTrimming(&opt, obj.0.as_raw())
+                }
+                _ => self.0.SetTrimming(&opt, std::ptr::null_mut()),
+            };
 
             if SUCCEEDED(hr) {
                 Ok(())
