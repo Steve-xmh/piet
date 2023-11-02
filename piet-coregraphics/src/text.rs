@@ -616,6 +616,7 @@ impl TextLayoutBuilder for CoreGraphicsTextLayoutBuilder {
             self.text,
             self.attr_string,
             self.width,
+            self.height,
             self.default_baseline,
             self.default_line_height,
         ))
@@ -749,6 +750,7 @@ impl CoreGraphicsTextLayout {
         text: Rc<dyn TextStorage>,
         attr_string: AttributedString,
         width_constraint: f64,
+        height_constraint: f64,
         default_baseline: f64,
         default_line_height: f64,
     ) -> Self {

@@ -29,6 +29,7 @@ mod picture_13;
 mod picture_14;
 mod picture_15;
 mod picture_16;
+mod picture_17;
 
 type BoxErr = Box<dyn std::error::Error>;
 
@@ -37,7 +38,7 @@ type BoxErr = Box<dyn std::error::Error>;
 pub const DEFAULT_SCALE: f64 = 2.0;
 
 /// The total number of samples in this module.
-pub const SAMPLE_COUNT: usize = 17;
+pub const SAMPLE_COUNT: usize = 18;
 
 /// file we save an os fingerprint to
 pub const GENERATED_BY: &str = "GENERATED_BY";
@@ -62,6 +63,7 @@ pub fn get<R: RenderContext>(number: usize) -> Result<SamplePicture<R>, BoxErr> 
         14 => SamplePicture::new(picture_14::SIZE, picture_14::draw),
         15 => SamplePicture::new(picture_15::SIZE, picture_15::draw),
         16 => SamplePicture::new(picture_16::SIZE, picture_16::draw),
+        17 => SamplePicture::new(picture_17::SIZE, picture_17::draw),
         _ => return Err(format!("No sample #{number} exists").into()),
     })
 }
