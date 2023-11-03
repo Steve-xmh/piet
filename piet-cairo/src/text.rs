@@ -9,7 +9,10 @@ use pango::prelude::FontMapExt;
 use pango::{AttrColor, AttrInt, AttrList, AttrSize, AttrString};
 use pangocairo::FontMap;
 
-use piet::kurbo::{Point, Rect, Size, Vec2};
+use piet::{
+    kurbo::{Point, Rect, Size, Vec2},
+    OverflowMethod,
+};
 use piet::{
     util, Error, FontFamily, FontStyle, HitTestPoint, HitTestPosition, LineMetric, Text,
     TextAlignment, TextAttribute, TextLayout, TextLayoutBuilder, TextStorage,
@@ -51,6 +54,8 @@ pub struct CairoTextLayoutBuilder {
     attributes: Vec<AttributeWithRange>,
     last_range_start_pos: usize,
     width_constraint: f64,
+    height_constraint: f64,
+    overflow_method: OverflowMethod,
     pango_layout: PangoLayout,
 }
 
@@ -192,6 +197,8 @@ impl Text for CairoText {
             attributes: Vec::new(),
             last_range_start_pos: 0,
             width_constraint: f64::INFINITY,
+            height_constraint: f64::INFINITY,
+            overflow_method: OverflowMethod::Default,
             pango_layout,
         }
     }
@@ -208,6 +215,16 @@ impl TextLayoutBuilder for CairoTextLayoutBuilder {
 
     fn max_width(mut self, width: f64) -> Self {
         self.width_constraint = width;
+        self
+    }
+
+    fn max_height(mut self, height: f64) -> Self {
+        self.height_constraint = height;
+        self
+    }
+
+    fn overflow(mut self, method: OverflowMethod) -> Self {
+        self.overflow_method = method;
         self
     }
 
@@ -334,7 +351,11 @@ impl TextLayoutBuilder for CairoTextLayoutBuilder {
 
         self.pango_layout.set_attributes(Some(&pango_attributes));
         self.pango_layout.set_wrap(pango::WrapMode::WordChar);
-        self.pango_layout.set_ellipsize(pango::EllipsizeMode::None);
+        match self.overflow_method {
+            OverflowMethod::Default => self.pango_layout.set_ellipsize(pango::EllipsizeMode::None),
+            OverflowMethod::Clip => self.pango_layout.set_ellipsize(pango::EllipsizeMode::None),
+            OverflowMethod::Ellipsis => self.pango_layout.set_ellipsize(pango::EllipsizeMode::End),
+        }
 
         // invalid until update_width() is called
         let mut layout = CairoTextLayout {
@@ -349,7 +370,7 @@ impl TextLayoutBuilder for CairoTextLayoutBuilder {
             pango_layout: self.pango_layout,
         };
 
-        layout.update_width(self.width_constraint);
+        layout.update_size(self.width_constraint, self.height_constraint);
         Ok(layout)
     }
 }
@@ -488,12 +509,21 @@ impl CairoTextLayout {
         self.pango_offset
     }
 
-    fn update_width(&mut self, new_width: impl Into<Option<f64>>) {
+    fn update_size(
+        &mut self,
+        new_width: impl Into<Option<f64>>,
+        new_height: impl Into<Option<f64>>,
+    ) {
         let new_width = new_width
             .into()
             .map(|w| pango::SCALE.saturating_mul(w as i32))
             .unwrap_or(UNBOUNDED_WRAP_WIDTH);
+        let new_height = new_height
+            .into()
+            .map(|w| pango::SCALE.saturating_mul(w as i32))
+            .unwrap_or(UNBOUNDED_WRAP_WIDTH);
         self.pango_layout.set_width(new_width);
+        self.pango_layout.set_height(new_height);
 
         let mut line_metrics = Vec::new();
         let mut x_offsets = Vec::new();

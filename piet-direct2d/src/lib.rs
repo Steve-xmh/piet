@@ -310,7 +310,7 @@ impl<'a> RenderContext for D2DRenderContext<'a> {
     }
 
     fn set_global_alpha(&mut self, _alpha: f64) {
-        // TODO
+        // TODO: Global Alpha
     }
 
     fn text(&mut self) -> &mut Self::Text {

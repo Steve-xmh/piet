@@ -192,6 +192,10 @@ impl<'a> RenderContext for CairoRenderContext<'a> {
         }
     }
 
+    fn set_global_alpha(&mut self, _alpha: f64) {
+        // TODO: Global Alpha
+    }
+
     fn finish(&mut self) -> Result<(), Error> {
         self.ctx.target().flush();
         Ok(())

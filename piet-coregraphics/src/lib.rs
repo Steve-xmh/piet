@@ -519,7 +519,7 @@ impl<'a> RenderContext for CoreGraphicsContext<'a> {
     }
 
     fn set_global_alpha(&mut self, _alpha: f64) {
-        // TODO
+        // TODO: Global Alpha
     }
 }
 
