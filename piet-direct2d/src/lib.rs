@@ -56,13 +56,29 @@ pub struct D2DRenderContext<'a> {
     brush_cache: AssociativeCache<u32, Brush, Capacity1024, HashFourWay, RoundRobinReplacement>,
 }
 
-#[derive(Default)]
 struct CtxState {
     transform: Affine,
+    alpha: f64,
 
     // Note: when we start pushing both layers and axis aligned clips, this will
     // need to keep track of which is which. But for now, keep it simple.
     n_layers_pop: usize,
+}
+
+impl Default for CtxState {
+    fn default() -> Self {
+        CtxState {
+            transform: Affine::default(),
+            alpha: 1.0,
+            n_layers_pop: 0,
+        }
+    }
+}
+
+impl D2DRenderContext<'_> {
+    fn get_current_alpha(&self) -> f64 {
+        self.ctx_stack.last().unwrap().alpha
+    }
 }
 
 impl<'b, 'a: 'b> D2DRenderContext<'a> {
@@ -222,8 +238,8 @@ impl<'a> RenderContext for D2DRenderContext<'a> {
     }
 
     fn solid_brush(&mut self, color: Color) -> Brush {
-        let device_context = &mut self.rt;
         let key = color.as_rgba_u32();
+        let device_context = &mut self.rt;
         self.brush_cache
             .entry(&key)
             .or_insert_with(
@@ -309,8 +325,13 @@ impl<'a> RenderContext for D2DRenderContext<'a> {
         self.ctx_stack.last_mut().unwrap().n_layers_pop += 1;
     }
 
-    fn set_global_alpha(&mut self, _alpha: f64) {
-        // TODO: Global Alpha
+    fn set_global_alpha(&mut self, alpha: f64) {
+        self.ctx_stack.last_mut().unwrap().alpha = alpha;
+    }
+
+    fn get_global_alpha(&self) -> f64 {
+        // This is an unwrap because we protect the invariant.
+        self.ctx_stack.iter().map(|s| s.alpha).product()
     }
 
     fn text(&mut self) -> &mut Self::Text {
@@ -325,8 +346,10 @@ impl<'a> RenderContext for D2DRenderContext<'a> {
     fn save(&mut self) -> Result<(), Error> {
         let new_state = CtxState {
             transform: self.current_transform(),
+            alpha: 1.0,
             n_layers_pop: 0,
         };
+        self.rt.push_opacity_mask(self.get_current_alpha());
         self.ctx_stack.push(new_state);
         Ok(())
     }
@@ -336,6 +359,7 @@ impl<'a> RenderContext for D2DRenderContext<'a> {
             return Err(Error::StackUnbalance);
         }
         self.pop_state();
+        self.rt.pop_layer();
         // Move this code into impl to avoid duplication with transform?
         self.rt
             .set_transform(&affine_to_matrix3x2f(self.current_transform()));

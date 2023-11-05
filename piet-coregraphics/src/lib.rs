@@ -521,6 +521,10 @@ impl<'a> RenderContext for CoreGraphicsContext<'a> {
     fn set_global_alpha(&mut self, _alpha: f64) {
         // TODO: Global Alpha
     }
+
+    fn get_global_alpha(&self) -> f64 {
+        1.0
+    }
 }
 
 impl<'a> IntoBrush<CoreGraphicsContext<'a>> for Brush {

@@ -168,6 +168,9 @@ where
     /// This's useful when using for rendering child with fading effects.
     fn set_global_alpha(&mut self, alpha: f64);
 
+    /// Get global alpha which will apply on current context state.
+    fn get_global_alpha(&self) -> f64;
+
     /// Save the context state.
     ///
     /// Pushes the current context state onto a stack, to be popped by

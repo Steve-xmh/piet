@@ -661,6 +661,26 @@ impl DeviceContext {
         }
     }
 
+    pub(crate) fn push_opacity_mask(&mut self, opacity: f64) {
+        unsafe {
+            let params = D2D1_LAYER_PARAMETERS {
+                contentBounds: D2D1_RECT_F {
+                    left: std::f32::NEG_INFINITY,
+                    top: std::f32::NEG_INFINITY,
+                    right: std::f32::INFINITY,
+                    bottom: std::f32::INFINITY,
+                },
+                geometricMask: null_mut(),
+                maskAntialiasMode: D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+                maskTransform: IDENTITY_MATRIX_3X2_F,
+                opacity: opacity as f32,
+                opacityBrush: null_mut(),
+                layerOptions: D2D1_LAYER_OPTIONS_NONE,
+            };
+            self.0.deref().deref().PushLayer(&params, null_mut());
+        }
+    }
+
     pub(crate) fn pop_layer(&mut self) {
         unsafe {
             self.0.PopLayer();

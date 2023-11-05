@@ -187,6 +187,15 @@ impl Color {
         Color::from_rgba32_u32((self.as_rgba_u32() & !0xff) | a)
     }
 
+    /// Change just the alpha value of a color by multiplying with previous alpha.
+    ///
+    /// The `a` value represents alpha in the range 0.0 to 1.0.
+    pub fn mul_alpha(self, a: f64) -> Color {
+        let (_, _, _, old_a) = self.as_rgba();
+        let a = (a.clamp(0.0, 1.0) * old_a * 255.).round() as u32;
+        Color::from_rgba32_u32((self.as_rgba_u32() & !0xff) | a)
+    }
+
     /// Change just the red value of a color.
     ///
     /// The `r` value represents red as a `u8` from 0 to 255.
@@ -392,5 +401,14 @@ mod tests {
         assert_eq!(color.with_g8(0xff), Color::from_rgba32_u32(0x11ff22bb));
         assert_eq!(color.with_b8(0xff), Color::from_rgba32_u32(0x11aaffbb));
         assert_eq!(color.with_a8(0xff), Color::from_rgba32_u32(0x11aa22ff));
+    }
+
+    #[test]
+    fn mul_alpha() {
+        let color = Color::from_rgba32_u32(0x11aa22bb);
+
+        assert_eq!(color.mul_alpha(0.5), Color::from_rgba32_u32(0x11aa225e));
+        assert_eq!(color.mul_alpha(0.0), Color::from_rgba32_u32(0x11aa2200));
+        assert_eq!(color.mul_alpha(1.0), Color::from_rgba32_u32(0x11aa22bb));
     }
 }

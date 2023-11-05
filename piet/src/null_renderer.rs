@@ -88,6 +88,10 @@ impl RenderContext for NullRenderContext {
 
     fn set_global_alpha(&mut self, _alpha: f64) {}
 
+    fn get_global_alpha(&self) -> f64 {
+        1.0
+    }
+
     fn save(&mut self) -> Result<(), Error> {
         Ok(())
     }
