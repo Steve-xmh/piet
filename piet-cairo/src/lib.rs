@@ -197,7 +197,6 @@ impl<'a> RenderContext for CairoRenderContext<'a> {
             .last()
             .map(|x| x.transform)
             .unwrap_or_default();
-        self.ctx.push_group();
         self.ctx_stack.push(CtxState {
             transform,
             alpha: 1.0,
@@ -206,12 +205,12 @@ impl<'a> RenderContext for CairoRenderContext<'a> {
     }
 
     fn restore(&mut self) -> Result<(), Error> {
-        if let Some(state) = self.ctx_stack.pop() {
+        if self.ctx_stack.pop().is_some() {
             // we're defensive about calling restore on the inner context,
             // because an unbalanced call will trigger a panic in cairo-rs
             self.ctx.pop_group_to_source().map_err(convert_error)?;
             self.ctx
-                .paint_with_alpha(state.alpha)
+                .paint_with_alpha(self.ctx_stack.last().map(|x| x.alpha).unwrap_or(1.0))
                 .map_err(convert_error)?;
             Ok(())
         } else {
