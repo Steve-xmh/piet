@@ -47,9 +47,24 @@ pub struct CoreGraphicsContext<'a> {
     // may be asked to flip the y-axis) we cannot trust the transform returned
     // by CTContextGetCTM. Instead we maintain our own stack, which will contain
     // only those transforms applied by us.
-    transform_stack: Vec<Affine>,
+    ctx_stack: Vec<CtxState>,
     y_down: bool,
     height: f64,
+}
+
+#[derive(Clone, Copy)]
+struct CtxState {
+    transform: Affine,
+    alpha: f64,
+}
+
+impl Default for CtxState {
+    fn default() -> Self {
+        Self {
+            transform: Affine::default(),
+            alpha: 1.0,
+        }
+    }
 }
 
 impl<'a> CoreGraphicsContext<'a> {
@@ -98,7 +113,7 @@ impl<'a> CoreGraphicsContext<'a> {
         CoreGraphicsContext {
             ctx,
             text,
-            transform_stack: Vec::new(),
+            ctx_stack: Vec::new(),
             y_down,
             height: height.unwrap_or_default(),
         }
@@ -283,13 +298,23 @@ impl<'a> RenderContext for CoreGraphicsContext<'a> {
 
     fn save(&mut self) -> Result<(), Error> {
         self.ctx.save();
-        let state = self.transform_stack.last().copied().unwrap_or_default();
-        self.transform_stack.push(state);
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGContextSetAlpha(c: core_graphics::sys::CGContextRef, alpha: CGFloat);
+        }
+        unsafe {
+            CGContextSetAlpha(
+                self.ctx.as_ptr(),
+                self.ctx_stack.last().map(|x| x.alpha).unwrap_or(1.0),
+            );
+        }
+        let state = self.ctx_stack.last().copied().unwrap_or_default();
+        self.ctx_stack.push(state);
         Ok(())
     }
 
     fn restore(&mut self) -> Result<(), Error> {
-        if self.transform_stack.pop().is_some() {
+        if self.ctx_stack.pop().is_some() {
             // we're defensive about calling restore on the inner context,
             // because an unbalanced call will trigger an assert in C
             self.ctx.restore();
@@ -304,10 +329,13 @@ impl<'a> RenderContext for CoreGraphicsContext<'a> {
     }
 
     fn transform(&mut self, transform: Affine) {
-        if let Some(last) = self.transform_stack.last_mut() {
-            *last *= transform;
+        if let Some(last) = self.ctx_stack.last_mut() {
+            last.transform *= transform;
         } else {
-            self.transform_stack.push(transform);
+            self.ctx_stack.push(CtxState {
+                transform,
+                ..Default::default()
+            });
         }
         self.ctx.concat_ctm(to_cgaffine(transform));
     }
@@ -511,19 +539,26 @@ impl<'a> RenderContext for CoreGraphicsContext<'a> {
     }
 
     fn current_transform(&self) -> Affine {
-        self.transform_stack.last().copied().unwrap_or_default()
+        self.ctx_stack.last().copied().unwrap_or_default().transform
     }
 
     fn status(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn set_global_alpha(&mut self, _alpha: f64) {
-        // TODO: Global Alpha
+    fn set_global_alpha(&mut self, alpha: f64) {
+        if self.ctx_stack.is_empty() {
+            self.ctx_stack.push(CtxState {
+                alpha,
+                ..Default::default()
+            });
+        } else {
+            self.ctx_stack.last_mut().unwrap().alpha = alpha;
+        }
     }
 
     fn get_global_alpha(&self) -> f64 {
-        1.0
+        self.ctx_stack.iter().map(|s| s.alpha).product()
     }
 }
 

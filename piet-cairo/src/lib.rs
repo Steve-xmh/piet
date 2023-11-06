@@ -27,8 +27,23 @@ pub struct CairoRenderContext<'a> {
     // to adjust for menus and window borders) we cannot trust the transform returned
     // by cairo. Instead we maintain our own stack, which will contain
     // only those transforms applied by us.
-    transform_stack: Vec<Affine>,
+    ctx_stack: Vec<CtxState>,
     error: Result<(), cairo::Error>,
+}
+
+#[derive(Clone, Copy)]
+struct CtxState {
+    transform: Affine,
+    alpha: f64,
+}
+
+impl Default for CtxState {
+    fn default() -> Self {
+        Self {
+            transform: Affine::default(),
+            alpha: 1.0,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -176,28 +191,44 @@ impl<'a> RenderContext for CairoRenderContext<'a> {
     }
 
     fn save(&mut self) -> Result<(), Error> {
-        self.ctx.save().map_err(convert_error)?;
-        let state = self.transform_stack.last().copied().unwrap_or_default();
-        self.transform_stack.push(state);
+        self.ctx.push_group();
+        let transform = self
+            .ctx_stack
+            .last()
+            .map(|x| x.transform)
+            .unwrap_or_default();
+        self.ctx.push_group();
+        self.ctx_stack.push(CtxState {
+            transform,
+            alpha: 1.0,
+        });
         Ok(())
     }
 
     fn restore(&mut self) -> Result<(), Error> {
-        if self.transform_stack.pop().is_some() {
+        if let Some(state) = self.ctx_stack.pop() {
             // we're defensive about calling restore on the inner context,
             // because an unbalanced call will trigger a panic in cairo-rs
-            self.ctx.restore().map_err(convert_error)
+            self.ctx.pop_group_to_source().map_err(convert_error)?;
+            self.ctx
+                .paint_with_alpha(state.alpha)
+                .map_err(convert_error)?;
+            Ok(())
         } else {
             Err(Error::StackUnbalance)
         }
     }
 
-    fn set_global_alpha(&mut self, _alpha: f64) {
-        // TODO: Global Alpha
+    fn set_global_alpha(&mut self, alpha: f64) {
+        if let Some(last) = self.ctx_stack.last_mut() {
+            last.alpha *= alpha;
+        } else {
+            self.ctx_stack.push(CtxState::default());
+        }
     }
 
     fn get_global_alpha(&self) -> f64 {
-        1.0
+        self.ctx_stack.iter().map(|s| s.alpha).product()
     }
 
     fn finish(&mut self) -> Result<(), Error> {
@@ -206,16 +237,22 @@ impl<'a> RenderContext for CairoRenderContext<'a> {
     }
 
     fn transform(&mut self, transform: Affine) {
-        if let Some(last) = self.transform_stack.last_mut() {
-            *last *= transform;
+        if let Some(last) = self.ctx_stack.last_mut() {
+            last.transform *= transform;
         } else {
-            self.transform_stack.push(transform);
+            self.ctx_stack.push(CtxState {
+                transform,
+                ..Default::default()
+            });
         }
         self.ctx.transform(affine_to_matrix(transform));
     }
 
     fn current_transform(&self) -> Affine {
-        self.transform_stack.last().copied().unwrap_or_default()
+        self.ctx_stack
+            .last()
+            .map(|x| x.transform)
+            .unwrap_or_default()
     }
 
     // allows e.g. raw_data[dst_off + x * 4 + 2] = buf[src_off + x * 4 + 0];
@@ -427,7 +464,7 @@ impl<'a> CairoRenderContext<'a> {
         CairoRenderContext {
             ctx,
             text: CairoText::new(),
-            transform_stack: Vec::new(),
+            ctx_stack: Vec::new(),
             error: Ok(()),
         }
     }
