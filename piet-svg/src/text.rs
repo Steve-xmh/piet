@@ -17,7 +17,7 @@ use font_kit::{
     source::{Source, SystemSource},
     sources::{mem::MemSource, multi::MultiSource},
 };
-use piet::kurbo::{Point, Rect, Size};
+use piet::{kurbo::{Point, Rect, Size}, OverflowMethod};
 use piet::{
     Color, Error, FontFamily, FontStyle, FontWeight, HitTestPoint, HitTestPosition, LineMetric,
     TextAlignment, TextAttribute, TextStorage,
@@ -168,6 +168,16 @@ impl piet::TextLayoutBuilder for TextLayoutBuilder {
 
     fn build(self) -> Result<TextLayout> {
         TextLayout::from_builder(self)
+    }
+    
+    fn max_height(self, _height: f64) -> Self {
+        // TODO
+        self
+    }
+    
+    fn overflow(self, _method: OverflowMethod) -> Self {
+        // TODO
+        self
     }
 }
 

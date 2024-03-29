@@ -462,6 +462,21 @@ impl piet::RenderContext for RenderContext {
         // TODO blur (perhaps using SVG filters)
         self.fill(rect, brush)
     }
+    
+    fn set_global_alpha(&mut self, alpha: f64) {
+        if self.stack.is_empty() {
+            self.stack.push(State {
+                alpha,
+                ..Default::default()
+            });
+        } else {
+            self.stack.last_mut().unwrap().alpha = alpha;
+        }
+    }
+
+    fn get_global_alpha(&self) -> f64 {
+        self.stack.iter().map(|s| s.alpha).product()
+    }
 }
 
 fn draw_image(
@@ -620,10 +635,21 @@ fn add_shape(node: &mut impl Node, shape: impl Shape, attrs: &Attrs) {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct State {
     xf: Affine,
     clip: Option<Id>,
+    alpha: f64,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            xf: Affine::default(),
+            clip: None,
+            alpha: 1.0,
+        }
+    }
 }
 
 /// An SVG brush

@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 use web_sys::CanvasRenderingContext2d;
 
-use piet::kurbo::{Point, Rect, Size};
+use piet::{kurbo::{Point, Rect, Size}, OverflowMethod};
 
 use piet::{
     util, Color, Error, FontFamily, HitTestPoint, HitTestPosition, LineMetric, Text, TextAttribute,
@@ -184,6 +184,16 @@ impl TextLayoutBuilder for WebTextLayoutBuilder {
 
         layout.update_width(self.width);
         Ok(layout)
+    }
+    
+    fn max_height(self, _height: f64) -> Self {
+        // TODO
+        self
+    }
+    
+    fn overflow(self, _method: OverflowMethod) -> Self {
+        // TODO
+        self
     }
 }
 

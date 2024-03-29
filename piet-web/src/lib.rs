@@ -447,6 +447,15 @@ impl RenderContext for WebRenderContext<'_> {
             .fill_rect(rect.x0, rect.y0, rect.width(), rect.height());
         self.ctx.set_shadow_color("none");
     }
+    
+    fn set_global_alpha(&mut self, _alpha: f64) {
+        // TODO
+    }
+    
+    fn get_global_alpha(&self) -> f64 {
+        // TODO
+        1.0
+    }
 }
 
 fn draw_image(
