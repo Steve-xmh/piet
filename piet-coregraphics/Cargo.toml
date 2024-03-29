@@ -23,6 +23,11 @@ associative-cache = "1.0.1"
 [dev-dependencies]
 piet = { version = "=0.6.2", path = "../piet", features = ["samples"] }
 piet-common = { version = "=0.6.2", path = "../piet-common", features = ["png"] }
+criterion = "0.3.6"
 
 [package.metadata.docs.rs]
 default-target = "x86_64-apple-darwin"
+
+[[bench]]
+name = "text-render"
+harness = false
